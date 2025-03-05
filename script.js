@@ -1,41 +1,67 @@
-#game-container {
-    width: 100%; /* Chiếm toàn chiều rộng màn hình */
-    height: 80vh; /* 80% chiều cao màn hình, để lại chỗ cho thanh trạng thái */
-    border: 2px solid black;
-    position: relative;
-    margin: 0 auto;
-    overflow: hidden;
-    background: #87CEEB;
-    max-width: 600px; /* Giới hạn tối đa cho máy tính */
-    min-height: 300px; /* Đảm bảo không quá nhỏ trên điện thoại cũ */
+let basket = document.getElementById('basket');
+let coin = document.getElementById('coin');
+let scoreDisplay = document.getElementById('score');
+let missedDisplay = document.getElementById('missed');
+
+let basketPos = 40; // Vị trí ban đầu giữa màn hình
+let coinPos = { x: Math.random() * 90, y: 0 }; // 90% để xu không sát lề
+let score = 0;
+let missed = 0;
+let speed = 0.3; // Tốc độ chậm hơn cho màn hình nhỏ
+let containerWidth = document.getElementById('game-container').offsetWidth;
+
+// Điều khiển bằng phím (máy tính)
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft' && basketPos > 0) basketPos -= 5;
+    if (e.key === 'ArrowRight' && basketPos < 80) basketPos += 5; // 80% vì rổ chiếm 20%
+    basket.style.left = basketPos + '%';
+});
+
+// Điều khiển bằng cảm ứng (điện thoại)
+basket.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    let touch = e.touches[0];
+    let newPos = (touch.clientX / containerWidth) * 100 - 10; // Giữ rổ giữa ngón tay
+    basketPos = Math.max(0, Math.min(80, newPos));
+    basket.style.left = basketPos + '%';
+});
+
+// Xu rơi
+function dropCoin() {
+    coinPos.y += speed;
+    coin.style.top = coinPos.y + 'vh'; // Dùng vh cho đồng bộ chiều cao
+    coin.style.left = coinPos.x + '%';
+
+    // Kiểm tra va chạm (điều chỉnh cho màn hình nhỏ)
+    if (coinPos.y > 75 && coinPos.y < 80 && 
+        coinPos.x > basketPos - 5 && coinPos.x < basketPos + 20) {
+        score += 10;
+        resetCoin();
+    } else if (coinPos.y > 80) {
+        missed++;
+        resetCoin();
+    }
+
+    scoreDisplay.textContent = `Điểm: ${score}`;
+    missedDisplay.textContent = `Bỏ lỡ: ${missed}`;
+
+    if (missed >= 5) {
+        alert(`Trò chơi kết thúc! Điểm: ${score}`);
+        score = 0;
+        missed = 0;
+    }
+
+    requestAnimationFrame(dropCoin);
 }
 
-#basket {
-    width: 20vw; /* 20% chiều rộng màn hình, khoảng 60-80px trên điện thoại */
-    height: 5vh; /* 5% chiều cao màn hình, khoảng 20-30px */
-    background: #FFD700;
-    position: absolute;
-    bottom: 2vh; /* Khoảng cách dưới linh hoạt */
-    left: 40%; /* Bắt đầu giữa màn hình */
-    touch-action: none; /* Ngăn cuộn trang */
-    border-radius: 5px; /* Bo góc nhẹ cho đẹp */
+function resetCoin() {
+    coinPos = { x: Math.random() * 90, y: 0 };
+    speed += 0.02; // Tăng chậm để dễ chơi trên điện thoại
 }
 
-#coin {
-    width: 5vw; /* 5% chiều rộng, khoảng 15-20px trên điện thoại */
-    height: 5vw; /* Giữ hình tròn */
-    background: #FFA500;
-    border-radius: 50%;
-    position: absolute;
-    top: 0;
-}
+// Cập nhật kích thước khi thay đổi
+window.addEventListener('resize', () => {
+    containerWidth = document.getElementById('game-container').offsetWidth;
+});
 
-#score, #missed {
-    position: absolute;
-    font-size: 5vw; /* Chữ to hơn một chút, co giãn theo màn hình */
-    color: white;
-    text-shadow: 1px 1px 2px black; /* Đổ bóng để dễ đọc */
-}
-
-#score { top: 1vh; left: 2vw; }
-#missed { top: 6vh; left: 2vw; }
+dropCoin();
