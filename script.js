@@ -1,69 +1,178 @@
-let basket = document.getElementById('basket');
-let coin = document.getElementById('coin');
-let scoreDisplay = document.getElementById('score');
-let missedDisplay = document.getElementById('missed');
+const startScreen = document.getElementById('startScreen');
+const settingsMenu = document.getElementById('settingsMenu');
+const gameCanvas = document.getElementById('gameCanvas');
+const pauseMenu = document.getElementById('pauseMenu');
+const startButton = document.getElementById('startButton');
+const settingsButton = document.getElementById('settingsButton');
+const backButton = document.getElementById('backButton');
+const resumeButton = document.getElementById('resumeButton');
+const settingsPauseButton = document.getElementById('settingsPauseButton');
+const homePauseButton = document.getElementById('homePauseButton');
+const homeButton = document.getElementById('homeButton');
 
-let basketPos = 40; // Vị trí ban đầu giữa màn hình
-let coinPos = { x: Math.random() * 90, y: 0 }; // 90% để xu không sát lề
+let player, coin, scoreDisplay, missesDisplay;
 let score = 0;
-let missed = 0;
-let initialSpeed = 0.3; // Tốc độ ban đầu (chậm)
-let speed = initialSpeed; // Gán speed ban đầu
-let containerWidth = document.getElementById('game-container').offsetWidth;
+let misses = 0;
+let highScore = 0;
+let highScores = [];
+let playerX = 350; // Vị trí giữa của canvas 800px
+let coinX, coinY;
+let fallSpeed = 5;
+let isPaused = false;
+let gameInterval;
 
-// Điều khiển bằng phím (máy tính)
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft' && basketPos > 0) basketPos -= 5;
-    if (e.key === 'ArrowRight' && basketPos < 80) basketPos += 5;
-    basket.style.left = basketPos + '%';
+startButton.addEventListener('click', startGame);
+settingsButton.addEventListener('click', showSettings);
+backButton.addEventListener('click', () => {
+    settingsMenu.style.display = 'none';
+    startScreen.style.display = 'block';
 });
-
-// Điều khiển bằng cảm ứng (điện thoại)
-basket.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    let touch = e.touches[0];
-    let newPos = (touch.clientX / containerWidth) * 100 - 10;
-    basketPos = Math.max(0, Math.min(80, newPos));
-    basket.style.left = basketPos + '%';
+resumeButton.addEventListener('click', resumeGame);
+settingsPauseButton.addEventListener('click', () => {
+    pauseMenu.style.display = 'none';
+    showSettings();
 });
+homePauseButton.addEventListener('click', () => {
+    pauseMenu.style.display = 'none';
+    gameCanvas.style.display = 'none';
+    startScreen.style.display = 'block';
+    isPaused = false;
+    gameCanvas.style.opacity = '1';
+});
+homeButton.addEventListener('click', showPauseMenu);
+document.addEventListener('keydown', handleKey);
+gameCanvas.addEventListener('click', showPauseMenu);
 
-// Xu rơi
-function dropCoin() {
-    coinPos.y += speed;
-    coin.style.top = coinPos.y + 'vh';
-    coin.style.left = coinPos.x + '%';
-
-    // Kiểm tra va chạm
-    if (coinPos.y > 75 && coinPos.y < 80 && 
-        coinPos.x > basketPos - 5 && coinPos.x < basketPos + 20) {
-        score += 10;
-        resetCoin();
-    } else if (coinPos.y > 80) {
-        missed++;
-        resetCoin();
+function handleKey(e) {
+    if (e.key === 'ArrowLeft' && !isPaused) {
+        playerX -= 20;
+        if (playerX < 0) playerX = 0;
+        player.style.left = playerX + 'px';
+    } else if (e.key === 'ArrowRight' && !isPaused) {
+        playerX += 20;
+        if (playerX > 700) playerX = 700; // 800 - 100 (chiều rộng player)
+        player.style.left = playerX + 'px';
+    } else if (e.key === ' ' && gameCanvas.style.display === 'block') {
+        showPauseMenu();
     }
-
-    scoreDisplay.textContent = `Điểm: ${score}`;
-    missedDisplay.textContent = `Bỏ lỡ: ${missed}`;
-
-    if (missed >= 5) {
-        alert(`Trò chơi kết thúc! Điểm: ${score}`);
-        score = 0;
-        missed = 0;
-        speed = initialSpeed; // Đặt lại tốc độ về ban đầu
-    }
-
-    requestAnimationFrame(dropCoin);
 }
 
-function resetCoin() {
-    coinPos = { x: Math.random() * 90, y: 0 };
-    speed += 0.02; // Tăng tốc độ dần trong ván hiện tại
+function startGame() {
+    startScreen.style.display = 'none';
+    gameCanvas.style.display = 'block';
+    pauseMenu.style.display = 'none';
+    score = 0;
+    misses = 0;
+    playerX = 350;
+    fallSpeed = 5;
+    isPaused = false;
+
+    // Khởi tạo các phần tử trong gameCanvas
+    gameCanvas.innerHTML = '<button id="homeButton">🏠</button>';
+    const newHomeButton = document.getElementById('homeButton');
+    newHomeButton.addEventListener('click', showPauseMenu);
+
+    player = document.createElement('div');
+    player.id = 'player';
+    player.style.left = playerX + 'px';
+    gameCanvas.appendChild(player);
+
+    scoreDisplay = document.createElement('div');
+    scoreDisplay.id = 'score';
+    scoreDisplay.textContent = `Score: ${score}`;
+    gameCanvas.appendChild(scoreDisplay);
+
+    missesDisplay = document.createElement('div');
+    missesDisplay.id = 'misses';
+    missesDisplay.textContent = `Misses: ${misses}/5`;
+    gameCanvas.appendChild(missesDisplay);
+
+    createCoin();
+    gameLoop();
 }
 
-// Cập nhật kích thước khi thay đổi
-window.addEventListener('resize', () => {
-    containerWidth = document.getElementById('game-container').offsetWidth;
-});
+function showSettings() {
+    startScreen.style.display = 'none';
+    gameCanvas.style.display = 'none';
+    settingsMenu.style.display = 'block';
+    updateHighScoreList();
+}
 
-dropCoin();
+function createCoin() {
+    if (isPaused) return;
+    if (coin) coin.remove(); // Xóa đồng xu cũ nếu có
+    coin = document.createElement('div');
+    coin.id = 'coin';
+    coinX = Math.random() * 780; // 800 - 20 (chiều rộng coin)
+    coinY = 0;
+    coin.style.left = coinX + 'px';
+    coin.style.top = coinY + 'px';
+    gameCanvas.appendChild(coin);
+}
+
+function updateGame() {
+    if (isPaused || misses >= 5) {
+        if (misses >= 5) endGame();
+        return;
+    }
+
+    // Tăng tốc độ mỗi 50 điểm
+    fallSpeed = 5 + Math.floor(score / 50) * 2;
+
+    coinY += fallSpeed;
+    coin.style.top = coinY + 'px';
+
+    if (coinY > 600) {
+        coin.remove();
+        misses++;
+        missesDisplay.textContent = `Misses: ${misses}/5`;
+        createCoin();
+    } else if (coinY + 20 > 590 && coinX + 20 > playerX && coinX < playerX + 100) {
+        coin.remove();
+        score += 10; // Cộng 10 điểm mỗi lần hứng
+        scoreDisplay.textContent = `Score: ${score}`;
+        createCoin();
+    }
+}
+
+function endGame() {
+    const highScoreDisplay = document.querySelector('#highScore span');
+    const highScorePauseDisplay = document.querySelector('#highScorePause span');
+    if (score > highScore) {
+        highScore = score;
+        highScoreDisplay.textContent = highScore;
+        highScorePauseDisplay.textContent = highScore;
+    }
+    highScores.push(score);
+    highScores.sort((a, b) => b - a);
+    highScores = highScores.slice(0, 5);
+    gameCanvas.style.display = 'none';
+    startScreen.style.display = 'block';
+    clearInterval(gameInterval);
+}
+
+function showPauseMenu() {
+    isPaused = true;
+    pauseMenu.style.display = 'block';
+    gameCanvas.style.opacity = '0.5';
+}
+
+function resumeGame() {
+    isPaused = false;
+    pauseMenu.style.display = 'none';
+    gameCanvas.style.opacity = '1';
+}
+
+function updateHighScoreList() {
+    highScoreList.innerHTML = '';
+    highScores.forEach((score, index) => {
+        const li = document.createElement('li');
+        li.textContent = `#${index + 1}: ${score}`;
+        highScoreList.appendChild(li);
+    });
+}
+
+function gameLoop() {
+    clearInterval(gameInterval);
+    gameInterval = setInterval(updateGame, 20);
+}
